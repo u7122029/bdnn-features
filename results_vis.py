@@ -1,7 +1,9 @@
 #import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
-from utils import get_results_path
+
+from data import generate_dataset
+from utils import get_results_path, DATA_ROOT
 
 import torch
 
@@ -31,12 +33,10 @@ def get_flip_freq(prefix):
     return out
 
 
-def print_best_accs(dset_version):
-    """
-    Prints the best accuracies for each model over a given dataset label_version.
-    :param dset_version: The label_version of the dataset.
-    :return: None.
-    """
+"""def print_best_accs(dset_version):
+    # Prints the best accuracies for each model over a given dataset label_version.
+    # :param dset_version: The label_version of the dataset.
+    # :return: None.
     for prefix in PREFIXES:
         path = Path("results") / dset_version / (prefix + ".pt")
         data = dict(np.load(str(path)))
@@ -45,7 +45,7 @@ def print_best_accs(dset_version):
         print(f"Best Val F1: {data['best_val_f1']}")
         print(f"Test Acc: {data['test_acc']}")
         print(f"Test F1: {data['test_f1']}")
-        print()
+        print()"""
 
 
 def show_graph(dset_version: DatasetType,
@@ -118,10 +118,19 @@ def show_graph(dset_version: DatasetType,
     plt.show()"""
 
 
+def plot_features(dset_type: DatasetType, label_type: LabelType, model_type: ModelType, flip_freq):
+    #filepath = get_results_path(dset_type, label_type, model_type, flip_freq)
+    dset_train, dset_val, dset_test = generate_dataset(DATA_ROOT, dset_type, label_type, return_datasets=True)
+    images, labels = dset_test[:]
+    images = images.flatten()
+
+
 if __name__ == "__main__":
-    show_graph(DatasetType.IMAGES,
+    torch.manual_seed(0)
+    """show_graph(DatasetType.IMAGES,
                LabelType.ALCOHOLIC,
-               "val_forward_losses")
+               "val_forward_losses")"""
+    plot_features(DatasetType.IMAGES, LabelType.ALCOHOLIC, ModelType.DNN, 0)
     #print_best_accs("images_alcoholic")
     #show_graph("images_alcoholic", "val_forward_f1s")
     #f = np.load("results/images_alcoholic/_CNN.npz")

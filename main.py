@@ -313,7 +313,8 @@ def run_model(model_type: ModelType,
                                 ForwardConfig.FORWARD)
 
     print(best_results)
-    print("Saving best results.")
+    print(f"Test Acc: {test_acc}")
+    print(f"Test F1: {test_f1}")
     out_path = get_results_path(dset_version, label_type, model_type, flip_freq)
 
     d = {"is_forward_epochs": best_results.is_forward_epochs,
@@ -357,9 +358,14 @@ def main():
     for model_type in model_type_combos:
         for dset_label_version in dataset_label_version_combos:
             print(model_type, dset_label_version)
+
             if not model_type.is_bidirectional():
                 # If the model type is not bidirectional we can run the model with no flip frequency and then
                 # skip over to the next one.
+                path = get_results_path(DatasetType.IMAGES, dset_label_version, model_type, flip_freq=0)
+                if path.exists():
+                    continue
+
                 run_model(model_type,
                           dset_label_version,
                           flip_freq=0,
@@ -369,6 +375,9 @@ def main():
 
             for flip_freq in flip_freq_combos:
                 print(f"Current flip frequency: {flip_freq}")
+                path = get_results_path(DatasetType.IMAGES, dset_label_version, model_type, flip_freq=flip_freq)
+                if path.exists():
+                    continue
                 run_model(model_type,
                           dset_label_version,
                           flip_freq=flip_freq,

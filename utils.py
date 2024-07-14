@@ -10,6 +10,7 @@ from pathlib import Path
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 RESULTS_ROOT = "results_new"
 CHECKPOINTS_ROOT = "checkpoints"
+DATA_ROOT = "C:/ml_datasets"
 
 
 class TrainingTracker:

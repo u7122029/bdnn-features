@@ -37,11 +37,18 @@ class AlcoholDataset(Dataset):
         else:
             raise Exception("Invalid dataset type.")
 
+        self.y = self.y.long()
+
     def __getitem__(self, item):
-        out_x = self.X[item]
-        out_y = int(self.y[item].item())
-        if self.transform:
-            out_x = self.transform(out_x.numpy())
+        out_x: torch.Tensor = self.X[item]
+        out_y = self.y[item]
+        if self.transform is not None:
+            ndims = out_x.dim()
+            out_x = out_x.numpy()
+            if ndims == 4:
+                out_x = torch.stack([self.transform(img) for img in out_x])
+            else:
+                out_x = self.transform(out_x)
         return out_x, out_y
 
     def __len__(self):
