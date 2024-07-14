@@ -109,7 +109,8 @@ class TrainingTracker:
                f"Checkpoint epoch: {self.checkpoint_epoch}\n"
                f"Best val loss (->): {self.best_forward_loss}\n"
                f"Best val acc (->): {self.best_forward_acc}\n"
-               f"Best val f1 (->): {self.best_forward_f1}")
+               f"Best val f1 (->): {self.best_forward_f1}\n"
+               f"Best lambda: {self.lambd}")
         return out
 
 
