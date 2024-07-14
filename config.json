@@ -1,0 +1,5 @@
+{
+  "dset_root": "C:/ml_datasets",
+  "lr": 3e-5,
+  "epochs": 469
+}
