@@ -120,9 +120,8 @@ def show_graph(dset_version: DatasetType,
 
 def plot_features(dset_type: DatasetType, label_type: LabelType, model_type: ModelType, flip_freq):
     #filepath = get_results_path(dset_type, label_type, model_type, flip_freq)
-    dset_train, dset_val, dset_test = generate_dataset(DATA_ROOT, dset_type, label_type, return_datasets=True)
-    images, labels = dset_test[:]
-    images = images.flatten(1)
+    dl_train, dl_val, dl_test = generate_dataset(DATA_ROOT, dset_type, label_type, return_datasets=False)
+    dl_train_features = 1
 
 
 if __name__ == "__main__":

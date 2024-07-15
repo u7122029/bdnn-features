@@ -55,14 +55,22 @@ class AlcoholDataset(Dataset):
         return len(self.X)
 
 
-def generate_dataset(data_root,
+def apply_pca(X_train, X_val, pca_components):
+    train_val_comb = torch.concat([X_train, X_val], dim=0)
+    pca = PCA(n_components=pca_components)
+    pca.fit(train_val_comb.flatten(1))
+    return pca
+
+
+def generate_dataset(data_root: str,
                      version: DatasetType,
                      label_version: LabelType,
                      train_prop=0.7,
                      val_prop=0.1,
                      train_batch_size=64,
                      return_datasets=False,
-                     pca_components=None):
+                     pca_components=None,
+                     show_pca_debug=False):
     """
     Generates a variant of the UCI EEG Alcoholism dataset based on specifications.
     :param data_root: The root directory of the raw dataset.
@@ -88,7 +96,7 @@ def generate_dataset(data_root,
     y_stimulus = torch.Tensor(raw_dataset["y_stimulus"]).squeeze(0)
     subject_ids = torch.Tensor(raw_dataset["subjectid"]).squeeze(0)
 
-    if version == DatasetType.ORIGINAL:
+    """if version == DatasetType.ORIGINAL:
         # Extract the theta, alpha and beta EEG layers.
         X_theta = X[:, 4:8, :]
         X_theta = torch.mean(X_theta, dim=1).unsqueeze(1)
@@ -97,7 +105,7 @@ def generate_dataset(data_root,
         X_beta = X[:, 14:31, :]
         X_beta = torch.mean(X_beta, dim=1).unsqueeze(1)
         X = torch.cat([X_theta, X_alpha, X_beta], dim=1)
-        X = X.flatten(start_dim=1)
+        X = X.flatten(start_dim=1)"""
     # If the dataset version consists of images, then all the preprocessing has been done for us.
 
     # Shuffle
@@ -143,8 +151,13 @@ def generate_dataset(data_root,
         X_val = (X_val - m) / s
         X_test = (X_test - m) / s
 
-        pca = PCA(n_components=pca_components)
-        pca.fit(torch.concat([X_train, X_val], dim=0).flatten(1))
+        pca = apply_pca(X_train, X_val, pca_components)
+        if show_pca_debug:
+            # Perform Kaiser's Rule to determine how many components to use.
+            eigenvalues = pca.explained_variance_
+            components_to_keep = sum([1 for eigenvalue in eigenvalues if eigenvalue > 1])
+            print(pca.explained_variance_)
+            print(components_to_keep)
         X_train = torch.Tensor(pca.transform(X_train.flatten(1)))
         X_val = torch.Tensor(pca.transform(X_val.flatten(1)))
         X_test = torch.Tensor(pca.transform(X_test.flatten(1)))

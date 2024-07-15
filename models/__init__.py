@@ -17,9 +17,9 @@ def get_model(label_version: LabelType, model_type: ModelType):
     elif model_type == ModelType.BDNN:
         return BDNN(3072, out_classes, False, [120, 84])
     elif model_type == ModelType.DNN_PCA:
-        return BDNN(200, out_classes, True, [120, 84])
+        return BDNN(47, out_classes, True, [120, 84])
     elif model_type == ModelType.BDNN_PCA:
-        return BDNN(200, out_classes, False, [120, 84])
+        return BDNN(47, out_classes, False, [120, 84])
     elif model_type == ModelType.LENET5:
         return LeNet5_BDNN(out_classes, True)
     elif model_type == ModelType.BLENET5:

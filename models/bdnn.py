@@ -11,7 +11,8 @@ class BDLinear(nn.Linear):
     """
 
     def forward(self, x, zero_bias=False, config: ForwardConfig = ForwardConfig.FORWARD):
-        check_backward_or_forward(config)
+        if not check_backward_or_forward(config):
+            return x
 
         active_bias = self.bias
         active_weight = self.weight
@@ -54,7 +55,8 @@ class BDNN(FeatureModel):
         self.layers: nn.ModuleList[BDLinear] = nn.ModuleList(self.layers)
 
     def forward(self, x, config: ForwardConfig = ForwardConfig.FORWARD):
-        check_backward_or_forward(config)
+        if not check_backward_or_forward(config):
+            return x
 
         iter_layers = self.layers
         if config == ForwardConfig.BACKWARD:

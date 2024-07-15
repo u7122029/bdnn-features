@@ -9,7 +9,7 @@ class ForwardConfig(Enum):
 
 
 def check_backward_or_forward(c: ForwardConfig):
-    assert c in {ForwardConfig.FORWARD, ForwardConfig.BACKWARD}
+    return c in {ForwardConfig.FORWARD, ForwardConfig.BACKWARD}
 
 
 class ModelType(Enum):

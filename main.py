@@ -287,7 +287,7 @@ def run_model(model_type: ModelType,
 
     pca_components = None
     if model_type in (ModelType.DNN_PCA, ModelType.BDNN_PCA):
-        pca_components = 200
+        pca_components = 47
 
     train_dl, val_dl, test_dl = generate_dataset(root,
                                                  dset_version,
