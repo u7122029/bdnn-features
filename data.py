@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from pathlib import Path
@@ -5,8 +7,17 @@ from torchvision.transforms import Compose, Normalize, ToTensor
 import torch
 import scipy
 from sklearn.decomposition import PCA
-from models.configs import DatasetType
+from models.configs import DatasetType, ModelType
 from models import LabelType
+from enum import Enum
+import bokeh.plotting as plt
+
+from utils import DATA_ROOT
+
+
+class PCAConfig(Enum):
+    Kaiser = 0
+    SCREE = 1
 
 
 class AlcoholDataset(Dataset):
@@ -23,17 +34,20 @@ class AlcoholDataset(Dataset):
         self.y_alcoholic = y_alcoholic
         self.y_stimulus = y_stimulus
         self.subject_ids = subject_ids
+        self.label_version = label_version
         #self.trialnums = trialnums
         self.version = label_version
         self.transform = transform
 
         self.y = None
+        self.y_alco_stim = 5 * self.y_alcoholic + self.y_stimulus - 1
+        self.y_alco_sub = 122 * self.y_alcoholic + self.subject_ids - 1
         if label_version == LabelType.ALCOHOLIC:
             self.y = self.y_alcoholic
         elif label_version == LabelType.ALCO_STIMULUS:
-            self.y = 5 * self.y_alcoholic + self.y_stimulus - 1
+            self.y = self.y_alco_stim
         elif label_version == LabelType.ALCO_SUBJECTID:
-            self.y = 122 * self.y_alcoholic + self.subject_ids - 1
+            self.y = self.y_alco_sub
         else:
             raise Exception("Invalid dataset type.")
 
@@ -65,24 +79,30 @@ def apply_pca(X_train, X_val, pca_components):
 def generate_dataset(data_root: str,
                      version: DatasetType,
                      label_version: LabelType,
+                     model_type: ModelType,
                      train_prop=0.7,
                      val_prop=0.1,
                      train_batch_size=64,
                      return_datasets=False,
-                     pca_components=None,
-                     show_pca_debug=False):
+                     pca_components: Optional[int]=None,
+                     get_pca_results: Optional[PCAConfig]=None):
     """
     Generates a variant of the UCI EEG Alcoholism dataset based on specifications.
     :param data_root: The root directory of the raw dataset.
     :param version:
     :param label_version: The variant to generate.
+    :param model_type:
     :param train_prop: The proportion of the raw data that should be in the training set.
     :param val_prop: The proportion of the raw data that should be in the validation set.
     :param train_batch_size: The batch size for the training set.
     :param return_datasets: True, if the datasets should be returned instead of the dataloaders.
     :param pca_components:
+    :param get_pca_results:
     :return: The training and testing datasets or dataloaders based on return_datasets.
     """
+    if model_type in (ModelType.DNN_PCA, ModelType.BDNN_PCA) and pca_components is None:
+        pca_components = 47
+
     if version == DatasetType.ORIGINAL:
         raw_dataset = scipy.io.loadmat(str(Path(data_root) / "alcoholism" / "uci_eeg.mat"))
         X = torch.Tensor(raw_dataset["X"])
@@ -152,12 +172,30 @@ def generate_dataset(data_root: str,
         X_test = (X_test - m) / s
 
         pca = apply_pca(X_train, X_val, pca_components)
-        if show_pca_debug:
+        if get_pca_results == PCAConfig.Kaiser:
             # Perform Kaiser's Rule to determine how many components to use.
             eigenvalues = pca.explained_variance_
             components_to_keep = sum([1 for eigenvalue in eigenvalues if eigenvalue > 1])
-            print(pca.explained_variance_)
             print(components_to_keep)
+        elif get_pca_results == PCAConfig.SCREE:
+            # Get the explained variance
+            explained_variance = pca.explained_variance_
+
+            # Create the Scree plot
+            f = plt.figure(title="Scree Plot",
+                           x_axis_label="Eigenvalue",
+                           y_axis_label="Magnitude",
+                           width=800,
+                           y_range=(0, 10),
+                           x_range=(0, len(explained_variance) + 1),
+                           height=600)
+            xs = list(range(1, len(explained_variance) + 1))
+            f.vbar(xs, top=explained_variance, width=0.8, color="#f9ebee")
+            f.line([0, len(explained_variance) + 1], [1, 1], line_width=1, color="red", legend_label="Kaiser Thresh.")
+            f.line([47, 47], [0, 10], color="green", line_width=1)
+            f.line(xs, explained_variance, line_width=2)
+            plt.show(f)
+
         X_train = torch.Tensor(pca.transform(X_train.flatten(1)))
         X_val = torch.Tensor(pca.transform(X_val.flatten(1)))
         X_test = torch.Tensor(pca.transform(X_test.flatten(1)))
@@ -182,3 +220,14 @@ def generate_dataset(data_root: str,
     dataloader_val = DataLoader(dset_val, batch_size=64, shuffle=True)
     dataloader_test = DataLoader(dset_test, batch_size=64)
     return dataloader_train, dataloader_val, dataloader_test
+
+
+if __name__ == "__main__":
+    torch.manual_seed(0)
+    dset_train, dset_val, dset_test = generate_dataset(DATA_ROOT, DatasetType.IMAGES, LabelType.ALCO_STIMULUS, ModelType.DNN, return_datasets=True)
+    y1, y2, y3 = dset_test.y_alcoholic, 2*dset_test.y_alco_stim // 10, 2*dset_test.y_alco_sub // 244
+    #print(dset_test.subject_ids.max())
+    #print(dset_train.subject_ids.max())
+    #print(dset_val.subject_ids.max())
+    #print(torch.all(y1 - y2 == 0))
+    #print(torch.all(y2 - y3 == 0))

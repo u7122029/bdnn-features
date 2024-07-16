@@ -3,7 +3,7 @@ import torch.optim as optim
 
 from tqdm import tqdm
 from data import generate_dataset
-from models import get_model, BDNN
+from models import get_model
 from utils import *
 import torch.nn.functional as F
 from pathlib import Path
@@ -13,28 +13,7 @@ import json
 import shutil
 
 from models.configs import FeatureModel, ForwardConfig, DatasetType, check_backward_or_forward
-from utils import get_results_path
-
-
-def process_batch_forwards(batch, model):
-    if isinstance(model, BDNN):
-        batch = batch.flatten(1)
-    return batch
-
-
-def process_batch_backwards(batch, model):
-    """
-    Convert the batch of images into features. For CNN models this means passing the images through the CNN layers only
-    For regular BDNN models the image only needs to be flattened into a vector.
-    :param batch:
-    :param model:
-    :return:
-    """
-    if isinstance(model, BDNN):
-        batch = batch.flatten(1)
-    else:
-        batch = model(batch, config=ForwardConfig.FEATURES_ONLY)
-    return batch
+from utils import get_results_path, process_batch_forwards, process_batch_backwards
 
 
 def test(model, test_dataloader, criterion, config: ForwardConfig):
@@ -266,9 +245,9 @@ def get_best_regularisation(train_dl,
 def run_model(model_type: ModelType,
               label_type: LabelType,
               dset_version: DatasetType = DatasetType.IMAGES,
-              root="C:/ml_datasets",
+              root=DATA_ROOT,
               batch_size=64,
-              epochs=465,
+              epochs=449,
               flip_freq=50,
               lr=2e-5):
     """
@@ -285,15 +264,11 @@ def run_model(model_type: ModelType,
     """
     lambdas = [1e-4, 1e-3, 1e-2, 1e-1]
 
-    pca_components = None
-    if model_type in (ModelType.DNN_PCA, ModelType.BDNN_PCA):
-        pca_components = 47
-
     train_dl, val_dl, test_dl = generate_dataset(root,
                                                  dset_version,
                                                  label_type,
-                                                 train_batch_size=batch_size,
-                                                 pca_components=pca_components)
+                                                 model_type,
+                                                 train_batch_size=batch_size)
 
     best_results = get_best_regularisation(train_dl,
                                            val_dl,

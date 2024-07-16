@@ -2,8 +2,8 @@ from typing import Optional
 
 import torch
 
-from models import LabelType, ModelType
-from models.configs import FeatureModel, LabelType, ModelType, DatasetType
+from models import LabelType, ModelType, BDNN
+from models.configs import FeatureModel, LabelType, ModelType, DatasetType, ForwardConfig
 from pathlib import Path
 
 # Device to use.
@@ -125,3 +125,24 @@ def get_results_path(dset_version: DatasetType,
     prefix = f"_F{flip_freq}" if model_type.is_bidirectional() else ""
     out_path = out_dir / f"{model_type}{prefix}.pt"
     return out_path
+
+
+def process_batch_forwards(batch, model):
+    if isinstance(model, BDNN):
+        batch = batch.flatten(1)
+    return batch
+
+
+def process_batch_backwards(batch, model):
+    """
+    Convert the batch of images into features. For CNN models this means passing the images through the CNN layers only
+    For regular BDNN models the image only needs to be flattened into a vector.
+    :param batch:
+    :param model:
+    :return:
+    """
+    if isinstance(model, BDNN):
+        batch = batch.flatten(1)
+    else:
+        batch = model(batch, config=ForwardConfig.FEATURES_ONLY)
+    return batch
