@@ -7,7 +7,7 @@ from models import get_model
 from utils import *
 import torch.nn.functional as F
 from pathlib import Path
-from torchmetrics.classification import BinaryF1Score, BinaryAccuracy
+from torchmetrics.classification import BinaryF1Score, BinaryAccuracy, BinaryRecall, BinaryPrecision
 from torchmetrics import MeanMetric
 import json
 import shutil
@@ -16,7 +16,7 @@ from models.configs import FeatureModel, ForwardConfig, DatasetType, check_backw
 from utils import get_results_path, process_batch_forwards, process_batch_backwards
 
 
-def test(model, test_dataloader, criterion, config: ForwardConfig):
+def test(model: FeatureModel, test_dataloader, criterion, config: ForwardConfig, return_pr=False):
     """
     Tests a model over the test dataloader.
     :param model: The model
@@ -25,20 +25,32 @@ def test(model, test_dataloader, criterion, config: ForwardConfig):
     :param config:
     :return: The average loss and acc - nonexistent for the backwards direction.
     """
-    check_backward_or_forward(config)
+    assert check_backward_or_forward(config)
 
     num_classes = model.out_features
+    precisionMetric = BinaryPrecision()
+    recallMetric = BinaryRecall()
     f1Metric = BinaryF1Score()
     accuracyMetric = BinaryAccuracy()
     meanLoss = MeanMetric()
 
+    precisionMetric.to(DEVICE)
+    recallMetric.to(DEVICE)
     f1Metric.to(DEVICE)
     accuracyMetric.to(DEVICE)
     meanLoss.to(DEVICE)
 
+    if model.training:
+        after_test = lambda: model.train()
+    else:
+        after_test = lambda: model.eval()
+
     model.eval()
+    mean_loss = None
     acc = None
     f1 = None
+    precision = None
+    recall = None
     with torch.no_grad():
         for batch, labels in test_dataloader:
             batch = batch.to(DEVICE)
@@ -65,13 +77,20 @@ def test(model, test_dataloader, criterion, config: ForwardConfig):
                 bin_labels = (labels * 2) // num_classes
                 accuracyMetric.update(bin_preds, bin_labels)
                 f1Metric.update(bin_preds, bin_labels)
+                precisionMetric.update(bin_preds, bin_labels)
+                recallMetric.update(bin_preds, bin_labels)
 
         if config == ForwardConfig.FORWARD:
             acc = accuracyMetric.compute().item()
             f1 = f1Metric.compute().item()
+            precision = precisionMetric.compute().item()
+            recall = recallMetric.compute().item()
+        mean_loss = meanLoss.compute().item()
 
-    model.train()
-    return meanLoss.compute().item(), acc, f1
+    after_test()
+    if return_pr:
+        return mean_loss, acc, f1, precision, recall
+    return mean_loss, acc, f1
 
 
 def epoch_forwards(model: FeatureModel, train_dataloader, criterion, optimiser, lambd):
@@ -249,7 +268,8 @@ def run_model(model_type: ModelType,
               batch_size=64,
               epochs=449,
               flip_freq=50,
-              lr=2e-5):
+              lr=2e-5,
+              test_only=False):
     """
     Generates a model and a dataset based on the given specifications, and trains the model on the dataset.
     :param root: The root directory of the original dataset.
@@ -282,16 +302,19 @@ def run_model(model_type: ModelType,
     model = get_model(label_type, model_type).to(DEVICE)
     model.load_state_dict(torch.load(best_results.checkpoint_dir / "best_lambda.pt"))
 
-    _, test_acc, test_f1 = test(model,
-                                test_dl,
-                                nn.CrossEntropyLoss(reduction="none"),
-                                ForwardConfig.FORWARD)
+    _, test_acc, test_f1, test_prec, test_recall = test(model,
+                                                        test_dl,
+                                                        nn.CrossEntropyLoss(reduction="none"),
+                                                        ForwardConfig.FORWARD,
+                                                        return_pr=True)
 
     print(best_results)
     print(f"Test Acc: {test_acc}")
     print(f"Test F1: {test_f1}")
-    out_path = get_results_path(dset_version, label_type, model_type, flip_freq)
+    print(f"Test Precision: {test_prec}")
+    print(f"Test Recall: {test_recall}")
 
+    out_path = get_results_path(dset_version, label_type, model_type, flip_freq)
     d = {"is_forward_epochs": best_results.is_forward_epochs,
          "best_val_acc": best_results.best_forward_acc,
          "best_val_f1": best_results.best_forward_f1,
@@ -300,6 +323,8 @@ def run_model(model_type: ModelType,
          "val_forward_f1s": best_results.val_forward_f1s,
          "test_acc": test_acc,
          "test_f1": test_f1,
+         "test_prec": test_prec,
+         "test_recall": test_recall,
          'best_lambda': best_results.lambd,
          "state_dict": model.state_dict()}
 
