@@ -1,0 +1,191 @@
+#import matplotlib.pyplot as plt
+import numpy as np
+from pathlib import Path
+
+from torch import nn
+
+from data import generate_dataset
+from main import test
+from models import get_model
+from utils import get_results_path, DATA_ROOT, DEVICE, process_batch_forwards
+from pacmap import PaCMAP
+import torch
+import pandas as pd
+
+from models.configs import DatasetType, LabelType, ModelType, ForwardConfig
+import bokeh.plotting as plt
+from bokeh.palettes import Paired6, Colorblind6
+
+
+class PlotConfig:
+    def __init__(self, key, dset_version: DatasetType, label_type: LabelType, model_type: ModelType):
+        self.key = key
+        self.dset_version = dset_version
+        self.label_type = label_type
+        self.model_type = model_type
+
+        self.legend_loc = {
+            "val_forward_accs": "bottom_right",
+            "val_forward_f1s": "bottom_right",
+            "val_forward_losses": "top_right",
+            "val_backward_losses": "bottom_right",
+        }[self.key]
+
+    def key_epoch_details(self, flip_freq):
+        flip_freq_map = {
+            0: 0,
+            1: 1,
+            10: 2,
+            50: 3,
+            100: 4
+        }
+
+        key_to_title = {
+            "val_forward_accs": "Forward Val Accuracy vs. Epoch",
+            "val_forward_f1s": "Forward Val F1 vs. Epoch",
+            "val_forward_losses": "Forward Val Loss vs. Epoch",
+            "val_backward_losses": "Backward Val Loss vs. Epoch",
+        }
+
+        key_to_y_label = {
+            "val_forward_accs": "Accuracy",
+            "val_forward_f1s": "F1 Score",
+            "val_forward_losses": "Loss",
+            "val_backward_losses": "Loss",
+        }
+
+        figure_kwargs = {
+            "title": key_to_title[self.key],
+            "y_axis_label": key_to_y_label[self.key],
+
+        }
+        if self.key == "val_forward_losses":
+            figure_kwargs["y_range"] = (0.2, 0.7)
+
+        colour = Colorblind6[flip_freq_map[0 if not self.model_type.is_bidirectional() else flip_freq]]
+        suffix = f"_{flip_freq}" if self.model_type.is_bidirectional() else ""
+        line_kwargs = {
+            "legend_label": f"{self.model_type.name}{suffix}",
+            "color": colour
+        }
+
+        scatter_kwargs = {
+            "color": colour
+        }
+        return figure_kwargs, line_kwargs, scatter_kwargs
+
+
+def plot_line(fig: plt.figure, pc: PlotConfig, flip_freq):
+    filepath = get_results_path(pc.dset_version, pc.label_type, pc.model_type, flip_freq)
+    data = torch.load(filepath)
+
+    is_forward_epochs = torch.Tensor(data["is_forward_epochs"]).bool()
+    val_forward_f1s = torch.Tensor(data[pc.key])
+    epoch_nos = torch.arange(1, len(is_forward_epochs) + 1)
+    forward_epoch_nos = epoch_nos[is_forward_epochs]
+
+    _, line_kwargs, scatter_kwargs = pc.key_epoch_details(flip_freq)
+    fig.line(forward_epoch_nos, val_forward_f1s, width=3, **line_kwargs)
+    fig.scatter(forward_epoch_nos, val_forward_f1s, size=5, **scatter_kwargs)
+
+
+def show_graph(key: str, label_type: LabelType, model_type1: ModelType, model_type2: ModelType):
+    pc = PlotConfig(key, DatasetType.IMAGES, label_type, model_type1)
+    pcb = PlotConfig(key, DatasetType.IMAGES, label_type, model_type2)
+
+    flip_freqs = [1, 10, 50, 100]
+    figure_kwargs, line_kwargs, scatter_kwargs = pc.key_epoch_details(0)
+    f1 = plt.figure(x_axis_label="Epoch",
+                    x_range=(0, 452),
+                    y_range=(0.3, 1),
+                    width=1100,
+                    height=800,
+                    **figure_kwargs)
+
+    plot_line(f1, pc, 0)
+
+    for flip_freq in flip_freqs:
+        plot_line(f1, pcb, flip_freq)
+
+    f1.legend.location = pc.legend_loc
+    plt.show(f1)
+
+
+def get_features(model, dl, out_classes):
+    features = []
+    all_labels = []
+    all_correct = []
+    with torch.no_grad():
+        for batch, labels in dl:
+            batch = batch.to(DEVICE)
+            labels = 2 * labels // out_classes
+            batch = process_batch_forwards(batch, model)
+
+            features.append(model(batch, config=ForwardConfig.FEATURES_ONLY).cpu())
+            outs = 2 * model(batch, config=ForwardConfig.FORWARD).cpu().argmax(dim=1) // out_classes
+
+            correct: torch.Tensor = outs == labels
+            all_correct.append(correct)
+            all_labels.append(labels)
+
+    return features, all_labels, all_correct
+
+
+def plot_features(dset_type: DatasetType, label_type: LabelType, model_type: ModelType, flip_freq: int):
+    filepath = get_results_path(dset_type, label_type, model_type, flip_freq)
+    state_dict = torch.load(filepath)["state_dict"]
+    colours = [Paired6[5], Paired6[0], Paired6[1], Paired6[4]]
+
+    _, _, dl_test = generate_dataset(DATA_ROOT, dset_type, label_type, model_type)
+
+    model = get_model(label_type, model_type).to(DEVICE)
+    model.load_state_dict(state_dict)
+    model.eval()
+
+    out_classes = label_type.out_classes()
+
+    test_features, test_labels, test_correct = get_features(model, dl_test, out_classes)
+    test_features = torch.cat(test_features, dim=0).flatten(1)
+    test_labels = torch.cat(test_labels).long()
+    test_correct = torch.cat(test_correct).long()
+    test_colours = 2 * test_labels + test_correct
+
+    pacmap = PaCMAP()
+    test_colours = [colours[x.item()] for x in test_colours]
+    test_features = torch.Tensor(pacmap.fit_transform(test_features.numpy()))
+
+    df = {
+        "train_features_x": test_features[:, 0],
+        "train_features_y": test_features[:, 1],
+        "train_labels": test_labels,
+        "train_correct": test_correct,
+        "train_colours": test_colours
+    }
+    df = pd.DataFrame(df)
+    source = plt.ColumnDataSource.from_df(df)
+
+    train_fig = plt.figure()
+    train_fig.scatter("train_features_x", "train_features_y", source=source, color="train_colours")
+    plt.show(train_fig)
+
+
+def main():
+    torch.manual_seed(0)
+    key = "val_forward_f1s"
+
+    show_graph(key,LabelType.ALCO_SUBJECTID, ModelType.DNN_PCA, ModelType.BDNN_PCA)
+
+
+if __name__ == "__main__":
+    main()
+    print(ModelType.BDNN.is_bidirectional())
+
+    #plot_features(DatasetType.IMAGES, LabelType.ALCOHOLIC, ModelType.BRESNET56, 50)
+    #print_best_accs("images_alcoholic")
+    #show_graph("images_alcoholic", "val_forward_f1s")
+    #f = np.load("results/images_alcoholic/_CNN.npz")
+    #print(float(dict(f)["test_f1"]))
+    #show_graph("stimulus_combined", "test_forward_accs", layers=["100"])
+    #show_graph("stimulus_combined", "test_forward_losses", layers=["100"])
+    #show_graph("stimulus_combined", "test_forward_accs", layers=["100_50"])
+    #show_graph("stimulus_combined", "test_forward_losses", layers=["100_50"])

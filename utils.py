@@ -12,6 +12,16 @@ RESULTS_ROOT = "results_new"
 CHECKPOINTS_ROOT = "checkpoints"
 DATA_ROOT = "C:/ml_datasets"
 
+ALL_MODEL_PAIRS = [(ModelType.DNN, ModelType.BDNN),
+                   (ModelType.DNN_PCA, ModelType.BDNN_PCA),
+                   (ModelType.LENET5, ModelType.BLENET5),
+                   (ModelType.RESNET56, ModelType.BRESNET56)]
+
+ALL_LABEL_TYPES = [LabelType.ALCOHOLIC,
+                   LabelType.ALCO_STIMULUS,
+                   LabelType.ALCO_SUBJECTID]
+
+ALL_FLIP_FREQS = [1, 10, 50, 100]
 
 class TrainingTracker:
     def __init__(self,
