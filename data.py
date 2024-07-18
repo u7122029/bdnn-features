@@ -1,6 +1,7 @@
 from typing import Optional
 
 import numpy as np
+from bokeh.io import export_svgs
 from torch.utils.data import Dataset, DataLoader
 from pathlib import Path
 from torchvision.transforms import Compose, Normalize, ToTensor
@@ -10,14 +11,16 @@ from sklearn.decomposition import PCA
 from models.configs import DatasetType, ModelType
 from models import LabelType
 from enum import Enum
-import bokeh.plotting as plt
+#import bokeh.plotting as plt
+import matplotlib.pyplot as plt
 
-from utils import DATA_ROOT
+from utils import DATA_ROOT, FIGURES_ROOT
 
 
 class PCAConfig(Enum):
     Kaiser = 0
     SCREE = 1
+    RATIO_95 = 2
 
 
 class AlcoholDataset(Dataset):
@@ -177,12 +180,16 @@ def generate_dataset(data_root: str,
             eigenvalues = pca.explained_variance_
             components_to_keep = sum([1 for eigenvalue in eigenvalues if eigenvalue > 1])
             print(components_to_keep)
+        elif get_pca_results == PCAConfig.RATIO_95:
+            cs = np.cumsum(pca.explained_variance_ratio_)
+            indices = np.where(cs >= 0.95)[0]
+            print(indices[0])
         elif get_pca_results == PCAConfig.SCREE:
             # Get the explained variance
             explained_variance = pca.explained_variance_
 
             # Create the Scree plot
-            f = plt.figure(title="Scree Plot",
+            """f = plt.figure(title="Scree Plot of Principal Components",
                            x_axis_label="Eigenvalue",
                            y_axis_label="Magnitude",
                            width=800,
@@ -192,9 +199,27 @@ def generate_dataset(data_root: str,
             xs = list(range(1, len(explained_variance) + 1))
             f.vbar(xs, top=explained_variance, width=0.8, color="#f9ebee")
             f.line([0, len(explained_variance) + 1], [1, 1], line_width=1, color="red", legend_label="Kaiser Thresh.")
+            #f.line([0, len(explained_variance) + 1], [0.25, 0.25], line_width=1, color="orange", legend_label="y=0.25")
             f.line([47, 47], [0, 10], color="green", line_width=1)
             f.line(xs, explained_variance, line_width=2)
-            plt.show(f)
+            f.output_backend = "svg"
+
+            export_svgs(f, filename=f"{FIGURES_ROOT}/scree.svg")
+            plt.show(f)"""
+            xs = list(range(1, len(explained_variance) + 1))
+
+            plt.figure()
+            plt.bar(xs, explained_variance, color="#ffc8bd")
+            plt.plot(xs, explained_variance)
+            plt.plot([0,len(explained_variance) + 1], [1, 1], color="red", label="Kaiser Thresh.")
+            plt.plot([47, 47], [5, 0], color="green", label="Kaiser Thresh. Intersection")
+            plt.ylim(0, 5)
+            plt.legend(loc="best")
+            plt.title("Scree Plot of Principal Components")
+            plt.ylabel("Eigenvalue Magnitude")
+            plt.xlabel("Principal Component")
+            plt.savefig(f"{FIGURES_ROOT}/scree.svg", format="svg")
+            plt.show()
 
         X_train = torch.Tensor(pca.transform(X_train.flatten(1)))
         X_val = torch.Tensor(pca.transform(X_val.flatten(1)))

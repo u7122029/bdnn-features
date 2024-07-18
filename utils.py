@@ -2,7 +2,7 @@ from typing import Optional
 
 import torch
 
-from models import LabelType, ModelType, BDNN
+from models import BDNN
 from models.configs import FeatureModel, LabelType, ModelType, DatasetType, ForwardConfig
 from pathlib import Path
 
@@ -11,11 +11,21 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 RESULTS_ROOT = "results_new"
 CHECKPOINTS_ROOT = "checkpoints"
 DATA_ROOT = "C:/ml_datasets"
+FIGURES_ROOT = "figures"
 
 ALL_MODEL_PAIRS = [(ModelType.DNN, ModelType.BDNN),
                    (ModelType.DNN_PCA, ModelType.BDNN_PCA),
                    (ModelType.LENET5, ModelType.BLENET5),
                    (ModelType.RESNET56, ModelType.BRESNET56)]
+
+ALL_MODEL_TYPES = [ModelType.DNN,
+                   ModelType.BDNN,
+                   ModelType.DNN_PCA,
+                   ModelType.BDNN_PCA,
+                   ModelType.LENET5,
+                   ModelType.BLENET5,
+                   ModelType.RESNET56,
+                   ModelType.BRESNET56]
 
 ALL_LABEL_TYPES = [LabelType.ALCOHOLIC,
                    LabelType.ALCO_STIMULUS,
