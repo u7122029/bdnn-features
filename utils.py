@@ -33,6 +33,7 @@ ALL_LABEL_TYPES = [LabelType.ALCOHOLIC,
 
 ALL_FLIP_FREQS = [1, 10, 50, 100]
 
+
 class TrainingTracker:
     def __init__(self,
                  lambd: int,
@@ -81,6 +82,7 @@ class TrainingTracker:
         self.best_forward_f1 = max(self.best_forward_f1, f1)
 
         if val_loss < self.best_forward_loss:
+            # Save the model to a checkpoint file if it attains the lowest validation loss so far.
             self.best_forward_loss = val_loss
             self.checkpoint_epoch = self.epoch_counter
             self.save(model, str(self.checkpoint_file))

@@ -160,12 +160,6 @@ def epoch_backwards(model: FeatureModel, train_dataloader, criterion, optimiser)
     return meanLoss.compute().item()
 
 
-def get_last_maybe(lst):
-    if not lst:
-        return None, None
-    return lst[-1]
-
-
 def train(model: FeatureModel,
           train_dataloader,
           val_dataloader,
@@ -239,6 +233,7 @@ def get_best_regularisation(train_dl,
     for lambd in tqdm(lambdas, desc="Iterating through lambdas."):
         model = get_model(label_type, model_type)
         model.to(DEVICE)
+
         optimiser = optim.Adam(model.parameters(), lr=lr)
         tracker = TrainingTracker(lambd, model_type, label_type, flip_freq)
         train(model,
