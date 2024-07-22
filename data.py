@@ -187,25 +187,6 @@ def generate_dataset(data_root: str,
         elif get_pca_results == PCAConfig.SCREE:
             # Get the explained variance
             explained_variance = pca.explained_variance_
-
-            # Create the Scree plot
-            """f = plt.figure(title="Scree Plot of Principal Components",
-                           x_axis_label="Eigenvalue",
-                           y_axis_label="Magnitude",
-                           width=800,
-                           y_range=(0, 10),
-                           x_range=(0, len(explained_variance) + 1),
-                           height=600)
-            xs = list(range(1, len(explained_variance) + 1))
-            f.vbar(xs, top=explained_variance, width=0.8, color="#f9ebee")
-            f.line([0, len(explained_variance) + 1], [1, 1], line_width=1, color="red", legend_label="Kaiser Thresh.")
-            #f.line([0, len(explained_variance) + 1], [0.25, 0.25], line_width=1, color="orange", legend_label="y=0.25")
-            f.line([47, 47], [0, 10], color="green", line_width=1)
-            f.line(xs, explained_variance, line_width=2)
-            f.output_backend = "svg"
-
-            export_svgs(f, filename=f"{FIGURES_ROOT}/scree.svg")
-            plt.show(f)"""
             xs = list(range(1, len(explained_variance) + 1))
 
             plt.figure()
